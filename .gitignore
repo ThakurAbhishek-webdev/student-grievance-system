@@ -1,0 +1,26 @@
+# Files to ignore in version control
+
+# Environment variables — NEVER commit these!
+.env
+.env.local
+.env.production
+
+# Node dependencies
+node_modules/
+*/node_modules/
+
+# Vite build output
+dist/
+build/
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# IDE files
+.vscode/
+.idea/
+
+# Logs
+*.log
+npm-debug.log*
