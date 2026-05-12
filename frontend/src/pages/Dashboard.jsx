@@ -1,332 +1,242 @@
-// ============================================================
-// src/pages/Dashboard.jsx — Main protected dashboard
-// ============================================================
-
-import React, { useState, useEffect, useCallback } from "react";
-import toast from "react-hot-toast";
-import API from "../api/axios";
-import { useAuth } from "../context/AuthContext";
-import Navbar from "../components/Navbar";
+import React, { useEffect, useState } from "react";
+import axios from "../api/axios";
 import GrievanceCard from "../components/GrievanceCard";
 import GrievanceForm from "../components/GrievanceForm";
-import Spinner from "../components/Spinner";
 
-// ─── Stats Card ──────────────────────────────────────────────
-const StatCard = ({ label, value, icon, color }) => (
-  <div className={`glass-card p-5 border-l-4 ${color}`}>
-    <div className="flex items-center justify-between">
-      <div>
-        <p className="text-slate-400 text-xs font-medium uppercase tracking-wider">{label}</p>
-        <p className="text-3xl font-bold text-white mt-1">{value}</p>
-      </div>
-      <span className="text-3xl">{icon}</span>
-    </div>
-  </div>
-);
-
-// ─── Delete Confirmation Modal ────────────────────────────────
-const DeleteModal = ({ onConfirm, onCancel }) => (
-  <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm">
-    <div className="glass-card p-6 max-w-sm w-full animate-slide-up">
-      <div className="text-center">
-        <div className="w-14 h-14 bg-rose-500/20 rounded-full flex items-center justify-center mx-auto mb-4">
-          <span className="text-2xl">🗑️</span>
-        </div>
-        <h3 className="text-white font-semibold text-lg mb-2">Delete Grievance?</h3>
-        <p className="text-slate-400 text-sm mb-6">
-          This action cannot be undone. The grievance will be permanently removed.
-        </p>
-        <div className="flex gap-3 justify-center">
-          <button id="confirm-delete-btn" onClick={onConfirm} className="btn-danger px-6">
-            Yes, Delete
-          </button>
-          <button onClick={onCancel} className="btn-secondary px-6">
-            Cancel
-          </button>
-        </div>
-      </div>
-    </div>
-  </div>
-);
-
-// ─── Main Dashboard Component ─────────────────────────────────
 const Dashboard = () => {
-  const { user } = useAuth();
 
-  // ── State ─────────────────────────────────────────────────
-  const [grievances, setGrievances]       = useState([]);
-  const [loading, setLoading]             = useState(true);
-  const [formLoading, setFormLoading]     = useState(false);
-  const [showForm, setShowForm]           = useState(false);
-  const [editingGrievance, setEditing]    = useState(null);   // null = creating new
-  const [searchQuery, setSearchQuery]     = useState("");
-  const [isSearching, setIsSearching]     = useState(false);
-  const [deleteTargetId, setDeleteTarget] = useState(null);
-  const [filterStatus, setFilterStatus]   = useState("All");  // All / Pending / Resolved
-  const [filterCategory, setFilterCategory] = useState("All");
+  const [bookings, setBookings] = useState([]);
+  const [showForm, setShowForm] = useState(false);
 
-  // ── Fetch all grievances ──────────────────────────────────
-  const fetchGrievances = useCallback(async () => {
-    setLoading(true);
+  // FETCH BOOKINGS
+  const fetchBookings = async () => {
     try {
-      const { data } = await API.get("/grievances");
-      setGrievances(data.data || []);
-    } catch (err) {
-      toast.error("Failed to load grievances.");
-    } finally {
-      setLoading(false);
+
+      const res = await axios.get("/grievances");
+
+      setBookings(res.data);
+
+    } catch (error) {
+      console.log(error);
     }
+  };
+
+  useEffect(() => {
+    fetchBookings();
   }, []);
 
-  useEffect(() => { fetchGrievances(); }, [fetchGrievances]);
-
-  // ── Search handler ────────────────────────────────────────
-  const handleSearch = async (e) => {
-    e.preventDefault();
-    if (!searchQuery.trim()) { fetchGrievances(); return; }
-    setIsSearching(true);
-    setLoading(true);
+  // CREATE BOOKING
+  const handleCreateBooking = async (data) => {
     try {
-      const { data } = await API.get(`/grievances/search?title=${searchQuery.trim()}`);
-      setGrievances(data.data || []);
-    } catch {
-      toast.error("Search failed.");
-    } finally {
-      setLoading(false);
-      setIsSearching(false);
-    }
-  };
 
-  const clearSearch = () => {
-    setSearchQuery("");
-    fetchGrievances();
-  };
+      await axios.post("/grievances", data);
 
-  // ── Create / Update submission ────────────────────────────
-  const handleFormSubmit = async (formData) => {
-    setFormLoading(true);
-    try {
-      if (editingGrievance) {
-        // UPDATE existing
-        await API.put(`/grievances/${editingGrievance._id}`, formData);
-        toast.success("Grievance updated successfully! ✅");
-      } else {
-        // CREATE new
-        await API.post("/grievances", formData);
-        toast.success("Grievance submitted! 📤");
-      }
+      fetchBookings();
+
       setShowForm(false);
-      setEditing(null);
-      fetchGrievances();
-    } catch (err) {
-      toast.error(err.response?.data?.message || "Operation failed.");
-    } finally {
-      setFormLoading(false);
+
+      alert("Travel package booked!");
+
+    } catch (error) {
+
+      console.log(error);
+
+      alert("Operation failed.");
     }
   };
 
-  // ── Edit handler ──────────────────────────────────────────
-  const handleEdit = (grievance) => {
-    setEditing(grievance);
-    setShowForm(true);
-    // Smooth scroll to top so form is visible
-    window.scrollTo({ top: 0, behavior: "smooth" });
+  // LOGOUT
+  const handleLogout = () => {
+    localStorage.removeItem("grievanceToken");
+    localStorage.removeItem("grievanceUser");
+
+    window.location.href = "/login";
   };
 
-  // ── Delete handler ────────────────────────────────────────
-  const handleDeleteConfirm = async () => {
-    if (!deleteTargetId) return;
-    try {
-      await API.delete(`/grievances/${deleteTargetId}`);
-      toast.success("Grievance deleted.");
-      setDeleteTarget(null);
-      fetchGrievances();
-    } catch {
-      toast.error("Delete failed.");
-      setDeleteTarget(null);
-    }
-  };
+  // STATS
+  const totalBookings = bookings.length;
 
-  // ── Cancel form ───────────────────────────────────────────
-  const handleFormCancel = () => {
-    setShowForm(false);
-    setEditing(null);
-  };
+  const pendingBookings = bookings.filter(
+    (b) => b.bookingStatus === "Pending"
+  ).length;
 
-  // ── Client-side filtering (status + category) ─────────────
-  const filteredGrievances = grievances.filter((g) => {
-    const statusMatch   = filterStatus   === "All" || g.status   === filterStatus;
-    const categoryMatch = filterCategory === "All" || g.category === filterCategory;
-    return statusMatch && categoryMatch;
-  });
+  const confirmedBookings = bookings.filter(
+    (b) => b.bookingStatus === "Confirmed"
+  ).length;
 
-  // ── Stats ─────────────────────────────────────────────────
-  const total    = grievances.length;
-  const pending  = grievances.filter((g) => g.status === "Pending").length;
-  const resolved = grievances.filter((g) => g.status === "Resolved").length;
-
-  // ─────────────────────────────────────────────────────────
   return (
-    <div className="min-h-screen bg-gradient-to-br from-slate-950 via-slate-900 to-indigo-950">
+    <div className="min-h-screen bg-gradient-to-br from-slate-950 via-slate-900 to-indigo-950 text-white">
 
-      {/* Top Navbar */}
-      <Navbar />
+      {/* NAVBAR */}
+      <div className="border-b border-slate-800 bg-slate-900/60 backdrop-blur-md">
 
-      <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+        <div className="max-w-7xl mx-auto px-6 py-4 flex justify-between items-center">
 
-        {/* ── Welcome Banner ────────────────────────────── */}
-        <div className="mb-8 animate-fade-in">
-          <h1 className="text-3xl font-bold text-white">
-            Good {new Date().getHours() < 12 ? "morning" : new Date().getHours() < 18 ? "afternoon" : "evening"},{" "}
-            <span className="text-transparent bg-clip-text bg-gradient-to-r from-indigo-400 to-purple-400">
-              {user?.name?.split(" ")[0]}!
-            </span>
+          <div>
+
+            <h1 className="text-2xl font-bold text-indigo-400">
+              Travel Booking System
+            </h1>
+
+            <p className="text-slate-400 text-sm">
+              Student Dashboard
+            </p>
+
+          </div>
+
+          <div className="flex items-center gap-4">
+
+            <button
+              onClick={handleLogout}
+              className="bg-rose-600 hover:bg-rose-700 px-5 py-2 rounded-xl font-semibold transition"
+            >
+              Logout
+            </button>
+
+          </div>
+
+        </div>
+      </div>
+
+      {/* MAIN */}
+      <div className="max-w-7xl mx-auto px-6 py-8">
+
+        {/* HERO */}
+        <div className="mb-10">
+
+          <h1 className="text-5xl font-extrabold mb-3">
+            Welcome, <span className="text-indigo-400">Abhishek!</span>
           </h1>
-          <p className="text-slate-400 mt-1">Manage and track all your grievances from here.</p>
+
+          <p className="text-slate-400 text-lg">
+            Manage and track all your travel bookings.
+          </p>
+
         </div>
 
-        {/* ── Stats Row ─────────────────────────────────── */}
-        <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 mb-8">
-          <StatCard label="Total Grievances" value={total}    icon="📋" color="border-indigo-500" />
-          <StatCard label="Pending"           value={pending}  icon="⏳" color="border-amber-500"  />
-          <StatCard label="Resolved"          value={resolved} icon="✅" color="border-emerald-500"/>
+        {/* STATS */}
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-10">
+
+          {/* TOTAL */}
+          <div className="bg-slate-900/70 border border-indigo-500/30 rounded-3xl p-6 shadow-xl">
+
+            <p className="text-slate-400 uppercase tracking-wider text-sm">
+              Total Bookings
+            </p>
+
+            <div className="flex justify-between items-center mt-4">
+
+              <h2 className="text-6xl font-bold">
+                {totalBookings}
+              </h2>
+
+              <span className="text-5xl">
+                ✈️
+              </span>
+
+            </div>
+          </div>
+
+          {/* PENDING */}
+          <div className="bg-slate-900/70 border border-yellow-500/30 rounded-3xl p-6 shadow-xl">
+
+            <p className="text-yellow-400 uppercase tracking-wider text-sm">
+              Pending
+            </p>
+
+            <div className="flex justify-between items-center mt-4">
+
+              <h2 className="text-6xl font-bold">
+                {pendingBookings}
+              </h2>
+
+              <span className="text-5xl">
+                ⏳
+              </span>
+
+            </div>
+          </div>
+
+          {/* CONFIRMED */}
+          <div className="bg-slate-900/70 border border-green-500/30 rounded-3xl p-6 shadow-xl">
+
+            <p className="text-green-400 uppercase tracking-wider text-sm">
+              Confirmed
+            </p>
+
+            <div className="flex justify-between items-center mt-4">
+
+              <h2 className="text-6xl font-bold">
+                {confirmedBookings}
+              </h2>
+
+              <span className="text-5xl">
+                ✅
+              </span>
+
+            </div>
+          </div>
         </div>
 
-        {/* ── Grievance Form Panel ──────────────────────── */}
+        {/* ACTION BAR */}
+        <div className="flex justify-end mb-8">
+
+          <button
+            onClick={() => setShowForm(!showForm)}
+            className="bg-indigo-600 hover:bg-indigo-700 px-6 py-3 rounded-2xl font-bold text-lg transition shadow-lg"
+          >
+            + New Booking
+          </button>
+
+        </div>
+
+        {/* FORM */}
         {showForm && (
-          <div className="glass-card p-6 mb-8 border-indigo-500/30 animate-slide-up">
-            <h2 className="text-lg font-semibold text-white mb-5 flex items-center gap-2">
-              {editingGrievance ? "✏️ Edit Grievance" : "📤 Submit New Grievance"}
-            </h2>
+
+          <div className="bg-slate-900/70 border border-slate-700 rounded-3xl p-6 mb-10 shadow-2xl">
+
             <GrievanceForm
-              initialData={editingGrievance}
-              onSubmit={handleFormSubmit}
-              onCancel={handleFormCancel}
-              loading={formLoading}
+              onSubmit={handleCreateBooking}
             />
+
           </div>
         )}
 
-        {/* ── Toolbar: Search + Filters + New Button ────── */}
-        <div className="glass-card p-4 mb-6">
-          <div className="flex flex-col sm:flex-row gap-3 items-start sm:items-center">
+        {/* BOOKINGS */}
+        {bookings.length > 0 ? (
 
-            {/* Search Bar */}
-            <form onSubmit={handleSearch} className="flex gap-2 flex-1 min-w-0">
-              <input
-                id="search-input"
-                type="text"
-                value={searchQuery}
-                onChange={(e) => setSearchQuery(e.target.value)}
-                placeholder="🔍  Search by title..."
-                className="input-field flex-1"
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+
+            {bookings.map((booking) => (
+
+              <GrievanceCard
+                key={booking._id}
+                grievance={booking}
               />
-              <button id="search-btn" type="submit" disabled={isSearching} className="btn-secondary whitespace-nowrap">
-                {isSearching ? <Spinner size="h-4 w-4" /> : "Search"}
-              </button>
-              {searchQuery && (
-                <button type="button" onClick={clearSearch} className="btn-secondary">
-                  ✕
-                </button>
-              )}
-            </form>
+            ))}
 
-            {/* Filter: Status */}
-            <select
-              id="filter-status"
-              value={filterStatus}
-              onChange={(e) => setFilterStatus(e.target.value)}
-              className="input-field w-full sm:w-36"
-            >
-              {["All", "Pending", "Resolved"].map((s) => (
-                <option key={s} value={s}>{s}</option>
-              ))}
-            </select>
-
-            {/* Filter: Category */}
-            <select
-              id="filter-category"
-              value={filterCategory}
-              onChange={(e) => setFilterCategory(e.target.value)}
-              className="input-field w-full sm:w-40"
-            >
-              {["All", "Academic", "Hostel", "Transport", "Other"].map((c) => (
-                <option key={c} value={c}>{c}</option>
-              ))}
-            </select>
-
-            {/* New Grievance button */}
-            {!showForm && (
-              <button
-                id="new-grievance-btn"
-                onClick={() => { setEditing(null); setShowForm(true); }}
-                className="btn-primary whitespace-nowrap"
-              >
-                + New Grievance
-              </button>
-            )}
           </div>
-        </div>
 
-        {/* ── Grievance List ────────────────────────────── */}
-        <div>
-          <div className="flex items-center justify-between mb-4">
-            <p className="section-label">
-              {filteredGrievances.length} Grievance{filteredGrievances.length !== 1 ? "s" : ""}
-              {filterStatus !== "All" || filterCategory !== "All" ? " (filtered)" : ""}
+        ) : (
+
+          <div className="bg-slate-900/70 border border-slate-700 rounded-3xl p-16 text-center shadow-xl">
+
+            <div className="text-7xl mb-5">
+              ✈️
+            </div>
+
+            <h2 className="text-4xl font-bold mb-4">
+              No bookings found
+            </h2>
+
+            <p className="text-slate-400 text-lg">
+              Book your first travel package now.
             </p>
+
           </div>
+        )}
 
-          {/* Loading state */}
-          {loading ? (
-            <div className="flex items-center justify-center py-20">
-              <div className="text-center">
-                <Spinner size="h-10 w-10" />
-                <p className="text-slate-400 text-sm mt-4">Loading grievances...</p>
-              </div>
-            </div>
-          ) : filteredGrievances.length === 0 ? (
-            /* Empty state */
-            <div className="glass-card p-12 text-center">
-              <div className="text-5xl mb-4">📭</div>
-              <h3 className="text-white font-semibold text-lg mb-2">No grievances found</h3>
-              <p className="text-slate-400 text-sm mb-6">
-                {searchQuery
-                  ? `No results for "${searchQuery}". Try a different search.`
-                  : "You haven't submitted any grievances yet."}
-              </p>
-              {!showForm && (
-                <button
-                  onClick={() => { setEditing(null); setShowForm(true); }}
-                  className="btn-primary"
-                >
-                  Submit Your First Grievance
-                </button>
-              )}
-            </div>
-          ) : (
-            /* Grievance grid */
-            <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
-              {filteredGrievances.map((g) => (
-                <GrievanceCard
-                  key={g._id}
-                  grievance={g}
-                  onEdit={handleEdit}
-                  onDelete={(id) => setDeleteTarget(id)}
-                />
-              ))}
-            </div>
-          )}
-        </div>
-      </main>
-
-      {/* Delete Confirmation Modal */}
-      {deleteTargetId && (
-        <DeleteModal
-          onConfirm={handleDeleteConfirm}
-          onCancel={() => setDeleteTarget(null)}
-        />
-      )}
+      </div>
     </div>
   );
 };
